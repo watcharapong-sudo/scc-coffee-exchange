@@ -713,7 +713,7 @@ async function doSubmit(){
   hist.unshift(rec);
   try{localStorage.setItem('scc_h_'+branch,JSON.stringify(hist.slice(0,50)));}catch{}
 
-  if(LARK_WEBHOOK) notifyLark(rec).catch(()=>{});
+  notifyLark(rec).catch(()=>{});
 
   document.getElementById('suc-out').textContent=tfOut;
   document.getElementById('suc-in').textContent='รอทีมคลังยืนยันพรุ่งนี้';
@@ -824,12 +824,12 @@ async function dismissItem(id){
 
 // ── LARK ──
 async function notifyLark(r){
-  if(!LARK_WEBHOOK)return;
   const lines=r.items.map(i=>`  • ${i.n} ×${i.q}`).join('\n');
   const now=new Date().toLocaleString('th-TH',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'});
   const zortLink=r.tfOutTid?`https://secure.zortout.com/Warehouse/TransferDetails?&tid=${r.tfOutTid}`:'';
   const msg=`☕ แจ้งขอเปลี่ยนกาแฟ\n━━━━━━━━━━━━━━━\n🏪 สาขา: ${r.branch}\n🕐 เวลา: ${now}\n\n📦 รายการ:\n${lines}${r.note?'\n\n💬 หมายเหตุ: '+r.note:''}\n\n✅ TF: ${r.tfOut}${zortLink?'\n🔗 Zort: '+zortLink:''}\n━━━━━━━━━━━━━━━\n👉 เข้าแอพคลังเพื่อกด Approve`;
-  await fetch(LARK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg_type:'text',content:{text:msg}})});
+  // ส่งผ่าน Worker เพื่อ bypass CORS
+  await fetch(WORKER+'/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg_type:'text',content:{text:msg}})});
 }
 
 // ── BRANCH HISTORY ──
