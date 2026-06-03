@@ -540,6 +540,8 @@ function bootWarehouse(){
   document.getElementById('nav-main-ico').textContent='🔄';
   document.getElementById('nav-main-lbl').textContent='รับคืน';
   nav('wh-queue');
+  // Auto-refresh every 30 seconds
+  setInterval(()=>{ if(document.getElementById('screen-wh-queue').classList.contains('active')) renderQueue(); }, 30000);
 }
 
 // ── CATALOG ──
@@ -717,17 +719,18 @@ async function doSubmit(){
 }
 
 // ── WAREHOUSE ──
-function whTab(t){
+async function whTab(t){
   whTab_=t;
   document.getElementById('tab-pending').className='tab'+(t==='pending'?' on':'');
   document.getElementById('tab-done').className='tab'+(t==='done'?' on':'');
-  renderQueue();
+  await renderQueue();
 }
 
 async function renderQueue(){
   const el=document.getElementById('wh-list');
+  el.innerHTML='<div class="queue-empty" style="color:var(--t3)">⏳ กำลังโหลด...</div>';
   let q=cleanExpired(await getQueue());
-  await setQueue(q); // save cleaned
+  if(q.length) await setQueue(q); // save cleaned only if changed
   const list=q.filter(item=>whTab_==='pending'?!item.done:item.done);
   if(!list.length){
     el.innerHTML=`<div class="queue-empty">${whTab_==='pending'?'✅ ไม่มีรายการค้างรับคืน':`ยังไม่มีรายการที่เสร็จแล้ว`}</div>`;
@@ -803,14 +806,14 @@ async function confirmReturn(id){
   await setQueue(q);
   showToast('✅ รับคืนแล้ว · TF IN: '+tfIn);
   btn.disabled=false; lbl.style.display='inline'; spin.style.display='none';
-  renderQueue();
+  await renderQueue();
 }
 
 async function dismissItem(id){
   let q=await getQueue();
   q=q.filter(x=>x.id!==id);
   await setQueue(q);
-  renderQueue();
+  await renderQueue();
 }
 
 // ── LARK ──
