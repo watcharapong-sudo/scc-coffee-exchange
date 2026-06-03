@@ -466,10 +466,23 @@ const RAW=[
 let role='branch', branch='', openCats=new Set(), hist=[], whTab_='pending';
 const prods=RAW.map((p,i)=>({...p,qty:0,i}));
 
-// ── SHARED QUEUE (localStorage shared key — same device or use storage API) ──
-// Key: scc_queue (array of pending return items)
-function getQueue(){try{return JSON.parse(localStorage.getItem('scc_queue')||'[]');}catch{return[];}}
-function setQueue(q){try{localStorage.setItem('scc_queue',JSON.stringify(q));}catch{}}
+// ── SHARED QUEUE via Cloudflare Worker KV (cross-device) ──
+const WORKER='https://scc-queue.watcharapong.workers.dev';
+async function getQueue(){
+  try{
+    const r=await fetch(WORKER+'/queue');
+    return await r.json();
+  }catch{return[];}
+}
+async function setQueue(q){
+  try{
+    await fetch(WORKER+'/queue',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(q)
+    });
+  }catch{}
+}
 
 function cleanExpired(q){
   const now=Date.now();
@@ -685,9 +698,9 @@ async function doSubmit(){
   }
 
   // Push to shared queue for warehouse to confirm return tomorrow
-  const q=cleanExpired(getQueue());
+  const q=cleanExpired(await getQueue());
   q.unshift({id:Date.now(),ts:Date.now(),branch,ref,refRtn,tfOut,tfIn:'—',note,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),listItems,done:false,doneTs:null});
-  setQueue(q);
+  await setQueue(q);
 
   // Branch history
   const rec={id:Date.now(),ts:new Date().toISOString(),branch,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),ref,refRtn,tfOut,tfIn:'รอคลังยืนยัน',note};
@@ -711,10 +724,10 @@ function whTab(t){
   renderQueue();
 }
 
-function renderQueue(){
+async function renderQueue(){
   const el=document.getElementById('wh-list');
-  let q=cleanExpired(getQueue());
-  setQueue(q); // save cleaned
+  let q=cleanExpired(await getQueue());
+  await setQueue(q); // save cleaned
   const list=q.filter(item=>whTab_==='pending'?!item.done:item.done);
   if(!list.length){
     el.innerHTML=`<div class="queue-empty">${whTab_==='pending'?'✅ ไม่มีรายการค้างรับคืน':`ยังไม่มีรายการที่เสร็จแล้ว`}</div>`;
@@ -756,7 +769,7 @@ async function confirmReturn(id){
   const spin=document.getElementById('rtn-spin-'+id);
   btn.disabled=true; lbl.style.display='none'; spin.style.display='block';
 
-  let q=getQueue();
+  let q=await getQueue();
   const item=q.find(x=>x.id===id);
   if(!item){ renderQueue(); return; }
 
@@ -787,16 +800,16 @@ async function confirmReturn(id){
   }
 
   item.done=true; item.doneTs=Date.now(); item.tfIn=tfIn;
-  setQueue(q);
+  await setQueue(q);
   showToast('✅ รับคืนแล้ว · TF IN: '+tfIn);
   btn.disabled=false; lbl.style.display='inline'; spin.style.display='none';
   renderQueue();
 }
 
-function dismissItem(id){
-  let q=getQueue();
+async function dismissItem(id){
+  let q=await getQueue();
   q=q.filter(x=>x.id!==id);
-  setQueue(q);
+  await setQueue(q);
   renderQueue();
 }
 
@@ -835,7 +848,7 @@ function nav(s){
   document.getElementById('nav-main').className='nav-it'+(s==='home'||s==='wh-queue'?' on':'');
   document.getElementById('nav-hist-btn').className='nav-it'+(s==='hist-branch'?' on':'');
   if(s==='hist-branch')renderBranchHist();
-  if(s==='wh-queue')renderQueue();
+  if(s==='wh-queue')renderQueue().catch(()=>{});
 }
 function goBack(){nav('home');}
 function navMain(){
