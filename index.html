@@ -383,7 +383,7 @@ const ZORT={store:'Kanyarat@thesummercoffee.com',key:'FsExrSGMtpVnF14IkhUKLiW6UN
 const WH_MAIN='WH001', WH_BRANCH='SCC0001';
 const PASS_BRANCH=atob('c2NjMTIzNDU2'); // scc123456
 const PASS_WH=atob('c2NjMTIzNDU2'); // sccwarehouse2025
-const LARK_WEBHOOK='';
+const LARK_WEBHOOK='https://open.larksuite.com/open-apis/bot/v2/hook/bc4f105a-09c4-47fc-a287-5af699537fbb';
 const QUEUE_TTL=3*24*60*60*1000; // 3 days
 
 const CAT_IMGS={
@@ -688,12 +688,16 @@ async function doSubmit(){
     });
     const data=await res.json();
     if(String(data.resCode)!=='200') throw new Error(data.resDesc||'Zort error');
-    return data.detail?.number||data.detail?.id||'สร้างแล้ว';
+    return {
+      number: data.detail?.number||'สร้างแล้ว',
+      tid: data.detail?.id||data.detail?.tid||''
+    };
   };
 
-  let tfOut='—';
+  let tfOut='—', tfOutTid='';
   try{
-    tfOut=await zortCall({status:'Pending',transferdate:today,fromwarehousecode:WH_MAIN,towarehousecode:WH_BRANCH,reference:ref,description:`กาแฟเปลี่ยน สาขา ${branch} — ${itemLines}${note?' | '+note:''}`,tag:[branch,'กาแฟเปลี่ยน'],list:listItems});
+    const r=await zortCall({status:'Pending',transferdate:today,fromwarehousecode:WH_MAIN,towarehousecode:WH_BRANCH,reference:ref,description:`กาแฟเปลี่ยน สาขา ${branch} — ${itemLines}${note?' | '+note:''}`,tag:[branch,'กาแฟเปลี่ยน'],list:listItems});
+    tfOut=r.number; tfOutTid=r.tid;
   }catch(e){
     btn.disabled=false; lbl.style.display='inline'; spin.style.display='none';
     showToast('❌ ส่งไม่สำเร็จ: '+e.message); return;
@@ -701,11 +705,11 @@ async function doSubmit(){
 
   // Push to shared queue for warehouse to confirm return tomorrow
   const q=cleanExpired(await getQueue());
-  q.unshift({id:Date.now(),ts:Date.now(),branch,ref,refRtn,tfOut,tfIn:'—',note,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),listItems,done:false,doneTs:null});
+  q.unshift({id:Date.now(),ts:Date.now(),branch,ref,refRtn,tfOut,tfOutTid,tfIn:'—',note,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),listItems,done:false,doneTs:null});
   await setQueue(q);
 
   // Branch history
-  const rec={id:Date.now(),ts:new Date().toISOString(),branch,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),ref,refRtn,tfOut,tfIn:'รอคลังยืนยัน',note};
+  const rec={id:Date.now(),ts:new Date().toISOString(),branch,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),ref,refRtn,tfOut,tfOutTid,tfIn:'รอคลังยืนยัน',note};
   hist.unshift(rec);
   try{localStorage.setItem('scc_h_'+branch,JSON.stringify(hist.slice(0,50)));}catch{}
 
@@ -749,6 +753,8 @@ async function renderQueue(){
         <div>
           <div class="queue-branch">🏪 ${item.branch}</div>
           <div class="queue-time">แจ้งเมื่อ ${ageStr} · Ref: ${item.ref}</div>
+          ${item.tfOutTid?`<div class="queue-time" style="margin-top:3px">🔗 <a href="https://secure.zortout.com/Warehouse/TransferDetails?&tid=${item.tfOutTid}" target="_blank" style="color:#8A6010;text-decoration:underline;font-size:11px">เปิดใน Zort: ${item.tfOut}</a></div>`:''}
+          ${item.tfOutTid?`<div class="queue-time" style="margin-top:2px">🔗 <a href="https://secure.zortout.com/Warehouse/TransferDetails?&tid=${item.tfOutTid}" target="_blank" style="color:#8A6010;text-decoration:underline">เปิดใน Zort: ${item.tfOut}</a></div>`:''}
           ${item.note?`<div class="queue-time" style="margin-top:3px">💬 ${item.note}</div>`:''}
         </div>
         <div class="queue-badge ${badgeCls}">${badgeTxt}</div>
@@ -819,8 +825,10 @@ async function dismissItem(id){
 // ── LARK ──
 async function notifyLark(r){
   if(!LARK_WEBHOOK)return;
-  const lines=r.items.map(i=>`• ${i.n} = ${i.q}`).join('\n');
-  const msg=`📤 Coffee Exchange สาขา ${r.branch}\n${lines}${r.note?'\n💬 '+r.note:''}\n\n✅ TF OUT: ${r.tfOut}\n🔄 TF IN: ${r.tfIn}\nRef: ${r.ref}`;
+  const lines=r.items.map(i=>`  • ${i.n} ×${i.q}`).join('\n');
+  const now=new Date().toLocaleString('th-TH',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const zortLink=r.tfOutTid?`https://secure.zortout.com/Warehouse/TransferDetails?&tid=${r.tfOutTid}`:'';
+  const msg=`☕ แจ้งขอเปลี่ยนกาแฟ\n━━━━━━━━━━━━━━━\n🏪 สาขา: ${r.branch}\n🕐 เวลา: ${now}\n\n📦 รายการ:\n${lines}${r.note?'\n\n💬 หมายเหตุ: '+r.note:''}\n\n✅ TF: ${r.tfOut}${zortLink?'\n🔗 Zort: '+zortLink:''}\n━━━━━━━━━━━━━━━\n👉 เข้าแอพคลังเพื่อกด Approve`;
   await fetch(LARK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg_type:'text',content:{text:msg}})});
 }
 
