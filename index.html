@@ -206,6 +206,16 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .nav-lbl{font-size:10px;color:var(--t3);font-family:var(--mono)}
 .nav-it.on .nav-lbl{color:#8A6010}
 
+/* ITEM NOTE in confirm */
+.prev-row{cursor:pointer;transition:background .12s}
+.prev-row:active{background:rgba(168,120,48,.04)}
+.item-note-wrap{padding:0 16px 10px;display:none}
+.item-note-wrap.show{display:block}
+.item-note-field{width:100%;background:var(--bg3);border:1px solid var(--bdr2);border-radius:10px;padding:9px 12px;font-size:12px;color:var(--text);font-family:var(--sans);outline:none;resize:none;transition:border-color .18s}
+.item-note-field:focus{border-color:rgba(168,120,48,.4)}
+.item-note-field::placeholder{color:var(--t3)}
+.item-note-tag{font-size:10px;color:#8A6010;font-family:var(--mono);margin-top:3px}
+
 /* SPINNER */
 .spin{width:17px;height:17px;border:2.5px solid rgba(30,18,8,.2);border-top-color:#1E1208;border-radius:50%;animation:rot .6s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
@@ -654,10 +664,24 @@ function goConfirm(){
   const note=document.getElementById('note').value.trim();
   const nr=document.getElementById('cf-note-row');
   if(note){nr.style.display='flex';document.getElementById('cf-note').textContent=note;}else{nr.style.display='none';}
-  document.getElementById('cf-items').innerHTML=sel.map(p=>`
-    <div class="prev-row">
-      <div class="prev-left"><div class="prev-name">${p.n}</div><div class="prev-sku">${p.s}</div></div>
-      <div class="prev-qty">×${p.qty}</div>
+  document.getElementById('cf-items').innerHTML=sel.map((p,i)=>`
+    <div>
+      <div class="prev-row" onclick="toggleItemNote(${p.i})" style="padding-right:16px">
+        <div class="prev-left">
+          <div class="prev-name">${p.n}</div>
+          <div class="prev-sku">${p.s}</div>
+          <div class="item-note-tag" id="note-tag-${p.i}"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div class="prev-qty">×${p.qty}</div>
+          <span style="font-size:11px;color:var(--t3)">💬</span>
+        </div>
+      </div>
+      <div class="item-note-wrap" id="note-wrap-${p.i}">
+        <textarea class="item-note-field" id="item-note-${p.i}" rows="2" 
+          placeholder="หมายเหตุสำหรับ ${p.n}..."
+          oninput="updateNoteTag(${p.i})"></textarea>
+      </div>
     </div>`).join('');
   nav('confirm');
 }
@@ -677,8 +701,9 @@ async function doSubmit(){
   const tomorrow=tomorrowDate.toISOString().split('T')[0];
   const ref='BRCH-'+branch.replace(/\s/g,'-').toUpperCase()+'-'+today.replace(/-/g,'')+'-'+Date.now().toString().slice(-4);
   const refRtn=ref+'-RTN';
-  const itemLines=sel.map(p=>`${p.n} (${p.s}) x${p.qty}`).join(', ');
-  const listItems=sel.map(p=>({sku:p.s,name:ZORT_NAMES[p.s]||p.n,number:p.qty}));
+  const itemNotes=getItemNotes();
+  const itemLines=sel.map(p=>`${p.n} (${p.s}) x${p.qty}${itemNotes[p.s]?' ['+itemNotes[p.s]+']':''}`).join(', ');
+  const listItems=sel.map(p=>({sku:p.s,name:ZORT_NAMES[p.s]||p.n,number:p.qty,remark:itemNotes[p.s]||''}));
 
   const zortCall=async(body)=>{
     const res=await fetch('https://open-api.zortout.com/v4/Transfer/AddTransfer',{
@@ -700,6 +725,7 @@ async function doSubmit(){
     tfOut=r.number; tfOutTid=r.tid;
   }catch(e){
     btn.disabled=false; lbl.style.display='inline'; spin.style.display='none';
+    console.error('Zort error:', e);
     showToast('❌ ส่งไม่สำเร็จ: '+e.message); return;
   }
 
@@ -709,7 +735,7 @@ async function doSubmit(){
   await setQueue(q);
 
   // Branch history
-  const rec={id:Date.now(),ts:new Date().toISOString(),branch,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty})),ref,refRtn,tfOut,tfOutTid,tfIn:'รอคลังยืนยัน',note};
+  const rec={id:Date.now(),ts:new Date().toISOString(),branch,items:sel.map(p=>({n:p.n,s:p.s,q:p.qty,note:itemNotes[p.s]||''})),ref,refRtn,tfOut,tfOutTid,tfIn:'รอคลังยืนยัน',note};
   hist.unshift(rec);
   try{localStorage.setItem('scc_h_'+branch,JSON.stringify(hist.slice(0,50)));}catch{}
 
@@ -824,7 +850,7 @@ async function dismissItem(id){
 
 // ── LARK ──
 async function notifyLark(r){
-  const lines=r.items.map(i=>`  • ${i.n} ×${i.q}`).join('\n');
+  const lines=r.items.map(i=>`  • ${i.n} ×${i.q}${i.note?' ('+i.note+')':''}`).join('\n');
   const now=new Date().toLocaleString('th-TH',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'});
   const zortLink=r.tfOutTid?`https://secure.zortout.com/Warehouse/TransferDetails?&tid=${r.tfOutTid}`:'';
   const msg=`☕ แจ้งขอเปลี่ยนกาแฟ\n━━━━━━━━━━━━━━━\n🏪 สาขา: ${r.branch}\n🕐 เวลา: ${now}\n\n📦 รายการ:\n${lines}${r.note?'\n\n💬 หมายเหตุ: '+r.note:''}\n\n✅ TF: ${r.tfOut}${zortLink?'\n🔗 Zort: '+zortLink:''}\n━━━━━━━━━━━━━━━\n👉 เข้าแอพคลังเพื่อกด Approve`;
@@ -847,6 +873,33 @@ function renderBranchHist(){
       ${h.note?`<div style="font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:4px">💬 ${h.note}</div>`:''}
     </div>`;
   }).join('');
+}
+
+// ── ITEM NOTE ──
+function toggleItemNote(idx){
+  const wrap=document.getElementById('note-wrap-'+idx);
+  if(!wrap)return;
+  const isOpen=wrap.classList.contains('show');
+  wrap.classList.toggle('show');
+  if(!isOpen){
+    const field=document.getElementById('item-note-'+idx);
+    if(field) field.focus();
+  }
+}
+function updateNoteTag(idx){
+  const field=document.getElementById('item-note-'+idx);
+  const tag=document.getElementById('note-tag-'+idx);
+  if(!field||!tag)return;
+  tag.textContent=field.value.trim()?'💬 '+field.value.trim():'';
+}
+function getItemNotes(){
+  const sel=prods.filter(p=>p.qty>0);
+  const notes={};
+  sel.forEach(p=>{
+    const field=document.getElementById('item-note-'+p.i);
+    if(field&&field.value.trim()) notes[p.s]=field.value.trim();
+  });
+  return notes;
 }
 
 // ── NAV ──
