@@ -676,7 +676,15 @@ function goConfirm(){
   if(!sel.length){showToast('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ');return;}
   const today=new Date();
   const tomorrow=new Date(today); tomorrow.setDate(today.getDate()+1);
-  const ref='BRCH-'+branch.replace(/\s/g,'-').toUpperCase()+'-'+today.toISOString().split('T')[0].replace(/-/g,'')+'-'+Date.now().toString().slice(-4);
+  const branchCode={
+    'Old Town':'OT','Centara':'CTR','Talat Noi':'TN',
+    'Siam Paragon':'SP','Central Park':'CPK',
+    'Central Pinklao':'CPL','Terminal 21':'T21','One Bangkok':'OBK'
+  }[branch]||branch.replace(/\s/g,'').toUpperCase().slice(0,4);
+  const d=today.toISOString().split('T')[0];
+  const ddmmyy=d.slice(8)+d.slice(5,7)+d.slice(2,4);
+  const seq=String(Math.floor(Date.now()/1000)%1000).padStart(3,'0');
+  const ref='SCC-'+branchCode+'-'+ddmmyy+'-'+seq;
   document.getElementById('cf-branch').textContent=branch;
   document.getElementById('cf-date').textContent=today.toLocaleDateString('th-TH',{day:'2-digit',month:'long',year:'numeric'});
   // cf-rtn-date and cf-ref removed from UI
@@ -718,7 +726,14 @@ async function doSubmit(){
   const tomorrowDate=new Date(todayDate); tomorrowDate.setDate(todayDate.getDate()+1);
   const today=todayDate.toISOString().split('T')[0];
   const tomorrow=tomorrowDate.toISOString().split('T')[0];
-  const ref='BRCH-'+branch.replace(/\s/g,'-').toUpperCase()+'-'+today.replace(/-/g,'')+'-'+Date.now().toString().slice(-4);
+  const branchCode={
+    'Old Town':'OT','Centara':'CTR','Talat Noi':'TN',
+    'Siam Paragon':'SP','Central Park':'CPK',
+    'Central Pinklao':'CPL','Terminal 21':'T21','One Bangkok':'OBK'
+  }[branch]||branch.replace(/\s/g,'').toUpperCase().slice(0,4);
+  const ddmmyy=today.slice(8)+today.slice(5,7)+today.slice(2,4);
+  const seq=String(Math.floor(Date.now()/1000)%1000).padStart(3,'0');
+  const ref='SCC-'+branchCode+'-'+ddmmyy+'-'+seq;
   const refRtn=ref+'-RTN';
   const itemNotes=getItemNotes();
   const itemLines=sel.map(p=>`${p.n} (${p.s}) x${p.qty}${itemNotes[p.s]?' ['+itemNotes[p.s]+']':''}`).join(', ');
