@@ -872,7 +872,7 @@ async function notifyLark(r){
   const lines=r.items.map(i=>`  • ${i.n} ×${i.q}${i.note?' ('+i.note+')':''}`).join('\n');
   const now=new Date().toLocaleString('th-TH',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'});
   const zortLink=r.tfOutTid?`https://secure.zortout.com/Warehouse/TransferDetails?&tid=${r.tfOutTid}`:'';
-  const msg=`☕ แจ้งขอเปลี่ยนกาแฟ\n━━━━━━━━━━━━━━━\n🏪 สาขา: ${r.branch}\n👤 ผู้แจ้ง: ${r.reporter||'-'}\n🕐 เวลา: ${now}\n\n📦 รายการ:\n${lines}${r.note?'\n\n💬 หมายเหตุ: '+r.note:''}\n\n✅ TF: ${r.tfOut}${zortLink?'\n🔗 Zort: '+zortLink:''}\n━━━━━━━━━━━━━━━\n👉 เข้าแอพคลังเพื่อกด Approve`;
+  const msg=`☕ แจ้งขอเปลี่ยนกาแฟ — ${r.branch}\n━━━━━━━━━━━━━━━\n👤 ${r.reporter||'-'}  |  🕐 ${now}\n\n${lines}${r.note?'\n\n💬 '+r.note:''}\n\n✅ TF: ${r.tfOut}${zortLink?'\n🔗 '+zortLink:''}\n━━━━━━━━━━━━━━━`;
   // ส่งผ่าน Worker เพื่อ bypass CORS
   await fetch(WORKER+'/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg_type:'text',content:{text:msg}})});
 }
