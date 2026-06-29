@@ -755,7 +755,7 @@ async function doSubmit(){
 
   let tfOut='—', tfOutTid='';
   try{
-    const r=await zortCall({status:'Pending',transferdate:today,fromwarehousecode:WH_MAIN,towarehousecode:WH_BRANCH,reference:ref,description:`กาแฟเปลี่ยน สาขา ${branch} (แจ้งโดย ${reporter}) — ${itemLines}${note?' | '+note:''}`,tag:[branch,'กาแฟเปลี่ยน'],list:listItems});
+    const r=await zortCall({status:'Pending',transferdate:today,fromwarehousecode:WH_MAIN,towarehousecode:WH_BRANCH,reference:ref,description:`กาแฟเปลี่ยน สาขา ${branch} | แจ้งโดย ${reporter} | Ref: ${ref}`,tag:[branch,'กาแฟเปลี่ยน'],list:listItems});
     tfOut=r.number; tfOutTid=r.tid;
   }catch(e){
     btn.disabled=false; lbl.style.display='inline'; spin.style.display='none';
@@ -855,7 +855,7 @@ async function confirmReturn(id){
         status:'Pending', transferdate:todayStr,
         fromwarehousecode:WH_BRANCH, towarehousecode:WH_MAIN,
         reference:item.refRtn,
-        description:`รับคืน สาขา ${item.branch} — [อ้างอิง ${item.ref}]`,
+        description:`รับคืน สาขา ${item.branch} | Ref: ${item.ref}`,
         tag:[item.branch,'รับคืน'],
         list:item.listItems||item.items.map(i=>({sku:i.s,name:ZORT_NAMES[i.s]||i.n,number:i.q}))
       })
